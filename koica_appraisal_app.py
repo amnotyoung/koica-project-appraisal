@@ -132,7 +132,7 @@ class KOICAAuditorStreamlit:
         
         try:
             genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
+            self.model = genai.GenerativeModel('gemini-2.5-pro')
         except Exception as e:
             raise Exception(f"Gemini API 연결 실패: {e}")
     
