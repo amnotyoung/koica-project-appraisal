@@ -75,3 +75,8 @@ htmlcov/
 # 로그
 *.log
 logs/
+
+# 익명 사용자 분석 데이터 (개인정보 보호)
+analytics/
+*.db
+*.db-journal
