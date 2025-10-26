@@ -35,3 +35,5 @@ sample_*.pdf
 *.log
 koica_appraisal_app_v1_backup.py
 koica_appraisal_app_v3.py
+koica_appraisal_app_v3_fixed.py
+.streamlit/secrets.toml
