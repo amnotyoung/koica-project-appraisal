@@ -136,6 +136,14 @@ GEMINI_API_KEY = "your-api-key-here"
 - **PDF Processing**: PyPDF2
 - **Language**: Python 3.10+
 
+## 브라우저 호환성
+
+권장 브라우저:
+- ✅ Chrome (권장)
+- ✅ Firefox
+- ✅ Edge
+- ⚠️ Safari (캐시 문제 가능성 - 하드 새로고침 권장)
+
 ## 🔒 보안 주의사항
 
 - ⚠️ **절대 API 키를 코드에 하드코딩하지 마세요**
