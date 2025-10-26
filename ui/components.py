@@ -79,7 +79,7 @@ def _display_policy_alignment(policy: Dict[str, Any]) -> None:
         f"{policy['백분율']:.1f}%"
     )
 
-    with st.expander("상세 분석 보기"):
+    with st.expander("상세 분석 보기", expanded=True):
         st.markdown("**📌 세부 항목 평가**")
         for item in policy['세부점수']:
             st.markdown(f"**{item['item']} ({item['score']}/{item['max_score']})**")
@@ -112,7 +112,7 @@ def _display_implementation_readiness(impl: Dict[str, Any]) -> None:
         f"{impl['백분율']:.1f}%"
     )
 
-    with st.expander("상세 분석 보기"):
+    with st.expander("상세 분석 보기", expanded=True):
         st.markdown("**📌 세부 항목 평가**")
         for item in impl['세부점수']:
             st.markdown(f"**{item['item']} ({item['score']}/{item['max_score']})**")
