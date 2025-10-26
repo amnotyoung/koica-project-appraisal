@@ -33,3 +33,5 @@ sample_*.pdf
 
 # 로그
 *.log
+koica_appraisal_app_v1_backup.py
+koica_appraisal_app_v3.py

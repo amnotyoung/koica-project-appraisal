@@ -1,4 +1,13 @@
-streamlit==1.31.0
+streamlit>=1.28.0
+google-generativeai>=0.3.0
+PyPDF2>=3.0.0
+python-dateutil>=2.8.2
+
+# RAG 추가
+langchain>=0.1.0
+langchain-community>=0.0.20
+langchain-google-genai>=0.0.6
+faiss-cpu>=1.7.4streamlit==1.31.0
 PyPDF2==3.0.1
 google-generativeai==0.3.2
 python-dotenv==1.0.0
