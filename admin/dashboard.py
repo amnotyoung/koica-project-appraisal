@@ -4,12 +4,18 @@ KOICA 관리자 대시보드 - 사용자 데이터 모니터링
 개인정보 보호법 준수 - 익명 데이터만 표시
 """
 
+import sys
+from pathlib import Path
+
+# 프로젝트 루트 디렉토리를 Python 경로에 추가
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
-from pathlib import Path
 import hashlib
 
 # 로깅 설정
