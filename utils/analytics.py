@@ -11,8 +11,9 @@ from typing import Optional, Dict, Any, List
 import logging
 
 from config import LogConfig
+from utils.logger import setup_logger
 
-logger = logging.getLogger("koica_analytics")
+logger = setup_logger(name="koica_analytics", log_to_file=True)
 
 
 class AnonymousAnalytics:
