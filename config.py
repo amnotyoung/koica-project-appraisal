@@ -10,7 +10,7 @@ class AppConfig:
     """애플리케이션 전역 설정"""
 
     # 앱 정보
-    APP_TITLE = "KOICA 심사 분석 도구 v3 (RAG)"
+    APP_TITLE = "KOICA 국별협력 사업 심사 분석 도구"
     APP_VERSION = "3.1.0"
     APP_ICON = "🚀"
 
