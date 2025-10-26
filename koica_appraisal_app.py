@@ -14,6 +14,10 @@ import streamlit as st
 from utils.logger import setup_logger
 logger = setup_logger(name="koica_main", log_to_file=True)
 
+# 익명 분석 설정
+from utils.analytics import get_analytics
+analytics = get_analytics()
+
 # 내부 모듈 import
 from core.auditor import KOICAAuditorStreamlit
 from ui.components import (
@@ -153,6 +157,13 @@ def render_pdf_tab(auditor: KOICAAuditorStreamlit):
         if st.button("🚀 분석 시작 (RAG v3.1)", type="primary", key="analyze_pdf"):
             logger.info(f"PDF 분석 시작: {uploaded_file.name}")
 
+            # 익명 분석 활동 로깅 (파일 이름은 저장하지 않음)
+            analytics.log_activity(
+                st.session_state.analytics_session_id,
+                action_type="pdf_analysis_started",
+                file_size_bytes=uploaded_file.size
+            )
+
             try:
                 # 1. 텍스트 추출
                 full_text = auditor.extract_text_from_pdf(uploaded_file)
@@ -161,6 +172,14 @@ def render_pdf_tab(auditor: KOICAAuditorStreamlit):
                 if not full_text:
                     st.error("❌ PDF에서 텍스트를 추출하지 못했습니다.")
                     logger.error("PDF 텍스트 추출 실패")
+                    # 실패 로깅
+                    analytics.log_activity(
+                        st.session_state.analytics_session_id,
+                        action_type="pdf_analysis",
+                        file_size_bytes=uploaded_file.size,
+                        success=False,
+                        error_type="text_extraction_failed"
+                    )
                     return
 
                 logger.info(f"PDF 텍스트 추출 완료: {len(full_text)} 문자")
@@ -171,13 +190,36 @@ def render_pdf_tab(auditor: KOICAAuditorStreamlit):
                 if results:
                     st.session_state[CacheConfig.SESSION_PDF_RESULTS] = results
                     logger.info("PDF 분석 완료")
+                    # 성공 로깅
+                    analytics.log_activity(
+                        st.session_state.analytics_session_id,
+                        action_type="pdf_analysis",
+                        file_size_bytes=uploaded_file.size,
+                        success=True
+                    )
                 else:
                     st.error("❌ 분석에 실패했습니다.")
                     logger.error("PDF 분석 실패")
+                    # 실패 로깅
+                    analytics.log_activity(
+                        st.session_state.analytics_session_id,
+                        action_type="pdf_analysis",
+                        file_size_bytes=uploaded_file.size,
+                        success=False,
+                        error_type="analysis_failed"
+                    )
 
             except Exception as e:
                 logger.error(f"PDF 분석 오류: {e}", exc_info=True)
                 st.error(f"❌ PDF 분석 중 오류가 발생했습니다.")
+                # 예외 로깅
+                analytics.log_activity(
+                    st.session_state.analytics_session_id,
+                    action_type="pdf_analysis",
+                    file_size_bytes=uploaded_file.size,
+                    success=False,
+                    error_type=type(e).__name__
+                )
                 # 프로덕션에서는 상세 에러를 숨김 (로그에만 기록)
 
     # 결과 표시
@@ -246,19 +288,49 @@ def render_text_tab(auditor: KOICAAuditorStreamlit):
 
         logger.info(f"텍스트 분석 시작: {len(text_input)} 문자")
 
+        # 익명 분석 활동 로깅 (텍스트 내용은 저장하지 않음)
+        analytics.log_activity(
+            st.session_state.analytics_session_id,
+            action_type="text_analysis_started",
+            action_detail=f"text_length:{len(text_input)}"
+        )
+
         try:
             results = auditor.conduct_audit(full_text=text_input)
 
             if results:
                 st.session_state[CacheConfig.SESSION_TEXT_RESULTS] = results
                 logger.info("텍스트 분석 완료")
+                # 성공 로깅
+                analytics.log_activity(
+                    st.session_state.analytics_session_id,
+                    action_type="text_analysis",
+                    action_detail=f"text_length:{len(text_input)}",
+                    success=True
+                )
             else:
                 st.error("❌ 분석에 실패했습니다.")
                 logger.error("텍스트 분석 실패")
+                # 실패 로깅
+                analytics.log_activity(
+                    st.session_state.analytics_session_id,
+                    action_type="text_analysis",
+                    action_detail=f"text_length:{len(text_input)}",
+                    success=False,
+                    error_type="analysis_failed"
+                )
 
         except Exception as e:
             logger.error(f"텍스트 분석 오류: {e}", exc_info=True)
             st.error(f"❌ 텍스트 분석 중 오류가 발생했습니다.")
+            # 예외 로깅
+            analytics.log_activity(
+                st.session_state.analytics_session_id,
+                action_type="text_analysis",
+                action_detail=f"text_length:{len(text_input)}",
+                success=False,
+                error_type=type(e).__name__
+            )
 
     # 결과 표시
     if CacheConfig.SESSION_TEXT_RESULTS in st.session_state:
@@ -365,6 +437,15 @@ def render_guide_tab():
 def main():
     """메인 애플리케이션"""
     logger.info("애플리케이션 시작")
+
+    # 익명 세션 ID 초기화 (개인정보 수집 안 함)
+    if "analytics_session_id" not in st.session_state:
+        st.session_state.analytics_session_id = analytics.get_or_create_session()
+        analytics.log_activity(
+            st.session_state.analytics_session_id,
+            action_type="app_start",
+            action_detail="Application started"
+        )
 
     # CSS 적용
     st.markdown(get_custom_css(), unsafe_allow_html=True)

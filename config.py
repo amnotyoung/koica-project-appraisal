@@ -160,6 +160,29 @@ class CacheConfig:
     ENABLE_RESULT_CACHE = True
 
 
+class AnalyticsConfig:
+    """익명 사용자 분석 설정 (개인정보 보호법 준수)"""
+
+    # 데이터베이스 경로
+    DB_PATH = "analytics/usage_data.db"
+
+    # 분석 활성화
+    ENABLE_ANALYTICS = True
+
+    # 수집하는 데이터 (익명)
+    # - 익명 세션 ID (UUID)
+    # - 타임스탬프
+    # - 사용 기능 (분석 유형)
+    # - 파일 크기 (내용 제외)
+    # - 성공/실패 여부
+
+    # 수집하지 않는 데이터 (개인정보)
+    # - IP 주소
+    # - 사용자 이름, 이메일
+    # - 파일 내용, 파일 이름
+    # - 분석 결과 내용
+
+
 # 전역 설정 인스턴스 (필요시 사용)
 APP_CONFIG = AppConfig()
 FILE_CONFIG = FileConfig()
@@ -169,3 +192,4 @@ AUDIT_CONFIG = AuditConfig()
 UI_CONFIG = UIConfig()
 LOG_CONFIG = LogConfig()
 CACHE_CONFIG = CacheConfig()
+ANALYTICS_CONFIG = AnalyticsConfig()
