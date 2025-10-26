@@ -17,3 +17,6 @@ plotly>=5.18.0,<6.0.0
 
 # Utilities
 python-dateutil>=2.8.2,<3.0.0
+
+# Database (for production deployment)
+psycopg2-binary>=2.9.9,<3.0.0
