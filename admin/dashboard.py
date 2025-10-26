@@ -232,7 +232,7 @@ def render_daily_chart():
             hovermode='x unified',
             height=400
         )
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
         # 성공/실패 차트
@@ -257,7 +257,7 @@ def render_daily_chart():
             hovermode='x unified',
             height=400
         )
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
 
     with tab3:
         # 파일 크기 차트
@@ -273,7 +273,7 @@ def render_daily_chart():
             yaxis_title="파일 크기 (MB)",
             height=400
         )
-        st.plotly_chart(fig, width='stretch')
+        st.plotly_chart(fig, use_container_width=True)
 
     # 데이터 테이블
     st.markdown("### 📋 상세 데이터")
@@ -287,7 +287,7 @@ def render_daily_chart():
             'failed': '실패',
             'total_file_size_mb': '파일 크기 (MB)'
         }),
-        width='stretch',
+        use_container_width=True,
         hide_index=True
     )
 
@@ -326,7 +326,7 @@ def render_recent_activities():
     # 데이터 테이블
     st.dataframe(
         display_df,
-        width='stretch',
+        use_container_width=True,
         hide_index=True
     )
 
