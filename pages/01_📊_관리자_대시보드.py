@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
 from pathlib import Path
+import hashlib
 
 # 로깅 설정
 from utils.logger import setup_logger
@@ -25,6 +26,96 @@ st.set_page_config(
     page_icon="📊",
     layout="wide"
 )
+
+
+def hash_password(password: str) -> str:
+    """비밀번호 해시 생성 (SHA-256)"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+def check_authentication() -> bool:
+    """관리자 인증 확인
+
+    Returns:
+        인증 성공 여부
+    """
+    # 이미 인증된 경우
+    if st.session_state.get("admin_authenticated", False):
+        return True
+
+    # 비밀번호 설정 확인
+    try:
+        # secrets.toml에서 관리자 비밀번호 해시 로드
+        admin_password_hash = st.secrets.get("ADMIN_PASSWORD_HASH", None)
+
+        if not admin_password_hash:
+            st.error("❌ 관리자 비밀번호가 설정되지 않았습니다.")
+            st.info("""
+            `.streamlit/secrets.toml` 파일에 다음을 추가하세요:
+            ```
+            ADMIN_PASSWORD_HASH = "your_password_hash_here"
+            ```
+
+            비밀번호 해시 생성 방법:
+            ```python
+            import hashlib
+            password = "your_password"
+            hash_value = hashlib.sha256(password.encode()).hexdigest()
+            print(hash_value)
+            ```
+            """)
+            logger.warning("관리자 비밀번호가 설정되지 않음")
+            return False
+
+    except Exception as e:
+        st.error(f"❌ 설정 로드 실패: {str(e)}")
+        logger.error(f"secrets.toml 로드 실패: {e}")
+        return False
+
+    # 로그인 폼 표시
+    st.markdown("## 🔐 관리자 로그인")
+    st.warning("⚠️ 이 페이지는 관리자만 접근할 수 있습니다.")
+
+    with st.form("admin_login"):
+        password = st.text_input("비밀번호", type="password", key="admin_password_input")
+        submit = st.form_submit_button("로그인", type="primary")
+
+        if submit:
+            if password:
+                input_hash = hash_password(password)
+
+                if input_hash == admin_password_hash:
+                    st.session_state.admin_authenticated = True
+                    logger.info("관리자 로그인 성공")
+                    st.success("✅ 로그인 성공!")
+                    st.rerun()
+                else:
+                    st.error("❌ 비밀번호가 올바르지 않습니다.")
+                    logger.warning("관리자 로그인 실패 시도")
+            else:
+                st.warning("⚠️ 비밀번호를 입력하세요.")
+
+    # 도움말
+    with st.expander("💡 관리자 권한이 필요하신가요?"):
+        st.markdown("""
+        관리자 권한이 필요한 경우 시스템 관리자에게 문의하세요.
+
+        **보안 주의사항:**
+        - 비밀번호를 다른 사람과 공유하지 마세요
+        - 공용 컴퓨터에서 로그인 후 반드시 로그아웃하세요
+        """)
+
+    return False
+
+
+def render_logout_button():
+    """로그아웃 버튼 렌더링"""
+    col1, col2 = st.columns([6, 1])
+    with col2:
+        if st.button("🚪 로그아웃", type="secondary"):
+            st.session_state.admin_authenticated = False
+            logger.info("관리자 로그아웃")
+            st.rerun()
 
 
 def render_summary_stats():
@@ -267,8 +358,16 @@ def render_privacy_notice():
 
 def main():
     """메인 대시보드"""
+    # 인증 확인
+    if not check_authentication():
+        st.stop()
+
+    # 인증 성공 - 대시보드 표시
     st.title("📊 KOICA 관리자 대시보드")
     st.markdown("### 사용자 데이터 모니터링 (익명)")
+
+    # 로그아웃 버튼
+    render_logout_button()
 
     # 개인정보 보호 안내
     render_privacy_notice()
@@ -293,7 +392,7 @@ def main():
     st.markdown("---")
     st.markdown(
         "<div style='text-align: center; color: #666;'>"
-        "KOICA 관리자 대시보드 | 개인정보 보호법 준수"
+        "KOICA 관리자 대시보드 | 개인정보 보호법 준수 | 🔐 로그인됨"
         "</div>",
         unsafe_allow_html=True
     )
