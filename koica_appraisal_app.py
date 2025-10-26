@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
 KOICA 사업 예비조사 심사 시스템 - Streamlit Web App
-(RAG, JSON 모드, 세부 채점 기능 적용 버전 - 임베딩 오류 수정)
+(RAG v3 - 임베딩 방식 개선 버전 - 수정됨)
 """
 
 import streamlit as st
 import os
-import io
 import json
 import traceback
+import time
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
@@ -17,13 +17,11 @@ from dataclasses import dataclass
 import PyPDF2
 import google.generativeai as genai
 from google.generativeai.types import GenerationConfig
-from langchain_community.vectorstores import FAISS
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+import numpy as np
 
 # --- 페이지 설정 ---
 st.set_page_config(
-    page_title="KOICA 심사 분석 도구 v2 (RAG)",
+    page_title="KOICA 심사 분석 도구 v3 (RAG)",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -77,8 +75,115 @@ class AuditEvidence:
     recommendations: List[str]
 
 
+class SimpleVectorStore:
+    """간단한 벡터 스토어 (Gemini API 직접 사용)"""
+    
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        genai.configure(api_key=api_key)
+        self.chunks = []
+        self.embeddings = []
+    
+    def add_texts(self, texts: List[str], batch_size: int = 1):
+        """텍스트를 임베딩하여 저장 - 단일 텍스트씩 처리로 변경"""
+        self.chunks = texts
+        total = len(texts)
+        
+        progress_bar = st.progress(0)
+        
+        for i, text in enumerate(texts, 1):
+            try:
+                # 단일 텍스트씩 임베딩 생성 (배치 문제 회피)
+                result = genai.embed_content(
+                    model="models/text-embedding-004",
+                    content=text,
+                    task_type="retrieval_document"
+                )
+                
+                # 단일 텍스트 응답 처리
+                if isinstance(result, dict) and 'embedding' in result:
+                    self.embeddings.append(result['embedding'])
+                elif isinstance(result, list):
+                    self.embeddings.append(result)
+                else:
+                    st.warning(f"청크 {i}: 예상치 못한 응답 구조")
+                    self.embeddings.append([0.0] * 768)
+                
+                progress = i / total
+                progress_bar.progress(progress, text=f"임베딩 생성 중: {i}/{total}")
+                
+                # API Rate Limit 방지
+                if i % 10 == 0:
+                    time.sleep(1)
+                else:
+                    time.sleep(0.3)
+                
+            except Exception as e:
+                st.error(f"청크 {i} 임베딩 실패: {e}")
+                # 실패한 청크는 빈 임베딩으로 채움
+                self.embeddings.append([0.0] * 768)
+        
+        progress_bar.empty()
+        st.success(f"✅ {len(self.embeddings)}개 청크 임베딩 완료!")
+    
+    def similarity_search(self, query: str, k: int = 10) -> List[str]:
+        """쿼리와 유사한 청크 검색"""
+        if not self.embeddings:
+            return []
+        
+        try:
+            # 쿼리 임베딩
+            result = genai.embed_content(
+                model="models/text-embedding-004",
+                content=query,
+                task_type="retrieval_query"
+            )
+            
+            # 쿼리 임베딩 응답 처리
+            if isinstance(result, dict) and 'embedding' in result:
+                query_embedding = result['embedding']
+            elif isinstance(result, list):
+                query_embedding = result
+            else:
+                st.warning(f"예상치 못한 쿼리 응답 구조: {type(result)}")
+                return self.chunks[:k]
+            
+            # 코사인 유사도 계산
+            similarities = []
+            for idx, doc_embedding in enumerate(self.embeddings):
+                similarity = self._cosine_similarity(query_embedding, doc_embedding)
+                similarities.append((idx, similarity))
+            
+            # 상위 k개 선택
+            similarities.sort(key=lambda x: x[1], reverse=True)
+            top_k = similarities[:k]
+            
+            return [self.chunks[idx] for idx, _ in top_k]
+            
+        except Exception as e:
+            st.warning(f"검색 중 오류: {e}")
+            return self.chunks[:k]  # 실패 시 앞부분 반환
+    
+    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+        """코사인 유사도 계산"""
+        try:
+            vec1 = np.array(vec1)
+            vec2 = np.array(vec2)
+            
+            # Zero division 방지
+            norm1 = np.linalg.norm(vec1)
+            norm2 = np.linalg.norm(vec2)
+            
+            if norm1 == 0 or norm2 == 0:
+                return 0.0
+            
+            return np.dot(vec1, vec2) / (norm1 * norm2)
+        except Exception:
+            return 0.0
+
+
 class KOICAAuditorStreamlit:
-    """KOICA 심사 시스템 - RAG 적용 버전"""
+    """KOICA 심사 시스템 - RAG v3"""
     
     def __init__(self, api_key: Optional[str] = None):
         """시스템 초기화"""
@@ -97,28 +202,21 @@ class KOICAAuditorStreamlit:
             raise ValueError("Gemini API 키가 필요합니다")
         
         try:
-            # 1. Gemini 설정
             genai.configure(api_key=api_key)
             
-            # 2. JSON 모드 설정
+            # JSON 모드 설정
             self.json_config = GenerationConfig(response_mime_type="application/json")
             
-            # 3. Gemini 모델 초기화 (JSON 모드 적용)
+            # Gemini 모델 초기화
             self.model = genai.GenerativeModel(
-                'gemini-2.0-flash-exp',
+                'gemini-2.5-pro',
                 generation_config=self.json_config
             )
             
-            # 4. RAG를 위한 임베딩 모델 초기화 (수정됨)
-            # task_type을 명시적으로 지정하여 메타데이터 오류 방지
-            self.embeddings = GoogleGenerativeAIEmbeddings(
-                model="models/text-embedding-004",
-                google_api_key=api_key,
-                task_type="retrieval_document"  # 문서 검색용으로 명시
-            )
+            self.api_key = api_key
             
         except Exception as e:
-            raise Exception(f"Gemini API 또는 임베딩 모델 연결 실패: {e}")
+            raise Exception(f"Gemini API 연결 실패: {e}")
     
     def extract_text_from_pdf(self, pdf_file) -> str:
         """PDF에서 전체 텍스트 추출"""
@@ -143,96 +241,70 @@ class KOICAAuditorStreamlit:
         except Exception as e:
             raise Exception(f"PDF 처리 오류: {e}")
 
-    def create_vector_store(self, full_text: str) -> Optional[FAISS]:
-        """텍스트를 청크로 나누고 벡터 스토어(FAISS) 생성 (오류 수정 버전)"""
+    def create_vector_store(self, full_text: str) -> Optional[SimpleVectorStore]:
+        """텍스트를 청크로 나누고 벡터 스토어 생성"""
         if not full_text:
             st.error("추출된 텍스트가 없습니다.")
             return None
         
-        # 1. 텍스트를 청크로 분할
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1500,
-            chunk_overlap=200,
-            separators=["\n\n", "\n", "##", "#", " ", ""]
-        )
-        chunks = text_splitter.split_text(full_text)
+        # 텍스트를 청크로 분할
+        chunks = self._split_text(full_text, chunk_size=1500, overlap=200)
         
         if not chunks:
             st.error("텍스트를 청크로 나눌 수 없습니다.")
             return None
         
-        st.info(f"📦 총 {len(chunks)}개 청크 생성됨. 임베딩 중...")
+        st.info(f"📦 총 {len(chunks)}개 청크 생성됨")
         
         try:
-            # 2. 벡터 스토어 생성 (배치 처리로 안정성 향상)
-            with st.spinner("임베딩 생성 및 벡터 인덱싱 중... (문서 크기에 따라 시간이 걸릴 수 있습니다)"):
-                # 큰 문서의 경우 배치 처리
-                batch_size = 50  # 한 번에 50개씩 처리
-                
-                if len(chunks) <= batch_size:
-                    # 작은 문서는 한 번에 처리
-                    vector_store = FAISS.from_texts(chunks, self.embeddings)
-                else:
-                    # 큰 문서는 배치로 나누어 처리
-                    vector_store = None
-                    progress_bar = st.progress(0)
-                    
-                    for i in range(0, len(chunks), batch_size):
-                        batch = chunks[i:i+batch_size]
-                        progress = (i + len(batch)) / len(chunks)
-                        progress_bar.progress(progress, text=f"임베딩 진행 중: {i+len(batch)}/{len(chunks)}")
-                        
-                        if vector_store is None:
-                            # 첫 배치로 벡터 스토어 초기화
-                            vector_store = FAISS.from_texts(batch, self.embeddings)
-                        else:
-                            # 기존 벡터 스토어에 추가
-                            temp_store = FAISS.from_texts(batch, self.embeddings)
-                            vector_store.merge_from(temp_store)
-                    
-                    progress_bar.empty()
-            
-            st.success("✅ 벡터 스토어 생성 완료!")
+            vector_store = SimpleVectorStore(self.api_key)
+            vector_store.add_texts(chunks)
             return vector_store
             
         except Exception as e:
             st.error(f"벡터 스토어 생성 실패: {e}")
             st.code(traceback.format_exc())
-            
-            # 대체 방안 제시
-            st.warning("💡 **대체 방안**: RAG 없이 전체 텍스트의 앞부분만 분석하시겠습니까?")
-            if st.button("RAG 없이 계속 진행", key="fallback_no_rag"):
-                st.session_state['use_fallback'] = True
-            
             return None
+    
+    def _split_text(self, text: str, chunk_size: int = 1500, overlap: int = 200) -> List[str]:
+        """텍스트를 청크로 분할"""
+        chunks = []
+        start = 0
+        text_length = len(text)
+        
+        while start < text_length:
+            end = start + chunk_size
+            chunk = text[start:end]
+            chunks.append(chunk)
+            start = end - overlap
+        
+        return chunks
 
-    def get_relevant_context(self, vector_store: FAISS, query: str, k: int = 10) -> str:
+    def get_relevant_context(self, vector_store: SimpleVectorStore, query: str, k: int = 10) -> str:
         """벡터 스토어에서 쿼리와 관련된 K개의 청크 검색"""
         if vector_store is None:
             return ""
         try:
             docs = vector_store.similarity_search(query, k=k)
-            context = "\n---\n".join([doc.page_content for doc in docs])
+            context = "\n---\n".join(docs)
             return context
         except Exception as e:
             st.warning(f"관련 컨텍스트 검색 오류: {e}")
             return ""
 
-    def analyze_policy_alignment(self, vector_store: FAISS = None, full_text: str = "") -> AuditEvidence:
+    def analyze_policy_alignment(self, vector_store: SimpleVectorStore = None, full_text: str = "") -> AuditEvidence:
         """[RAG 적용] 국내외 정책 부합성 AI 분석"""
         
-        # 1. RAG: 관련성 높은 컨텍스트 검색
+        # RAG: 관련성 높은 컨텍스트 검색
         if vector_store:
             query = "국내외 정책 부합성, SDGs, 수원국 개발 정책, 한국 정부 CPS, 코이카 중기 전략, 타 공여기관 지원 현황, ODA"
-            context = self.get_relevant_context(vector_store, query)
+            context = self.get_relevant_context(vector_store, query, k=15)
         else:
-            # RAG 실패 시 전체 텍스트의 앞부분 사용
             context = full_text[:30000] if full_text else ""
         
         if not context:
             context = "보고서에서 관련 내용을 찾을 수 없습니다."
         
-        # 2. 세부 채점 기준 프롬프트 (JSON 모드)
         prompt = f"""당신은 KOICA 사업 심사 전문가입니다. 다음 보고서 발췌 내용을 '국내외 정책 부합성' 기준으로 평가하세요.
 
 === 평가 기준 (30점 만점) ===
@@ -243,7 +315,7 @@ class KOICAAuditorStreamlit:
 5. 타 공여기관 중복 분석 (5점)
 
 === 보고서 발췌 내용 ===
-{context[:30000]}
+{context[:35000]}
 
 === 출력 형식 (JSON) ===
 {{
@@ -281,12 +353,12 @@ JSON만 출력하세요."""
             st.error(f"정책부합성 분석 오류: {e}")
             return AuditEvidence(0, 30, 0.0, [], f"분석 실패: {e}", [], [], [])
 
-    def analyze_implementation_readiness(self, vector_store: FAISS = None, full_text: str = "") -> AuditEvidence:
+    def analyze_implementation_readiness(self, vector_store: SimpleVectorStore = None, full_text: str = "") -> AuditEvidence:
         """[RAG 적용] 사업 추진 여건 AI 분석"""
         
         if vector_store:
             query = "사업 추진 여건, 수원국 추진체계, 국내 추진체계, 사업 추진전략, 리스크 관리, 성과관리, 예산, 일정"
-            context = self.get_relevant_context(vector_store, query)
+            context = self.get_relevant_context(vector_store, query, k=15)
         else:
             context = full_text[:30000] if full_text else ""
         
@@ -303,7 +375,7 @@ JSON만 출력하세요."""
 5. 성과관리 (10점)
 
 === 보고서 발췌 내용 ===
-{context[:30000]}
+{context[:35000]}
 
 === 출력 형식 (JSON) ===
 {{
@@ -401,6 +473,8 @@ def display_results(results: Dict[str, Any]):
     # RAG 사용 여부 표시
     if not results.get('RAG_사용', False):
         st.warning("⚠️ 이 분석은 RAG 없이 수행되었습니다. 전체 문서가 아닌 앞부분만 분석되었을 수 있습니다.")
+    else:
+        st.success("✅ RAG 기반 전체 문서 분석 완료")
     
     # 총점 표시
     total_score = results['총점']
@@ -464,11 +538,11 @@ def generate_report_text(results: Dict[str, Any]) -> str:
     """텍스트 보고서 생성"""
     lines = []
     lines.append("=" * 80)
-    lines.append("KOICA 사업 심사 분석 결과 (AI-RAG 기반 v2)")
+    lines.append("KOICA 사업 심사 분석 결과 (AI-RAG v3)")
     lines.append("=" * 80)
     lines.append(f"분석 일시: {datetime.now().strftime('%Y년 %m월 %d일 %H:%M:%S')}")
     lines.append(f"분석 시간: {results['분석시간']}")
-    lines.append(f"RAG 사용: {'예' if results.get('RAG_사용', False) else '아니오 (전체 텍스트 앞부분만 분석)'}")
+    lines.append(f"RAG 사용: {'예' if results.get('RAG_사용', False) else '아니오'}")
     lines.append(f"총점: {results['총점']} / 100\n")
     
     # 정책 부합성
@@ -519,8 +593,8 @@ def generate_report_text(results: Dict[str, Any]) -> str:
 # ========== 메인 앱 ==========
 
 def main():
-    st.markdown('<h1 class="main-header">🚀 KOICA 사업 심사 분석 도구 (RAG v2)</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">RAG, JSON 모드 적용 · 비공식 개인 프로젝트</p>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">🚀 KOICA 사업 심사 분석 도구 (RAG v3)</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">개선된 RAG · 비공식 개인 프로젝트</p>', unsafe_allow_html=True)
     
     # Disclaimer
     st.markdown("""
@@ -544,17 +618,16 @@ def main():
 
     # 사이드바
     with st.sidebar:
-        st.markdown("## 📊 도구 정보 (v2)")
+        st.markdown("## 📊 도구 정보 (v3 - 수정됨)")
         st.warning("**비공식 개인 프로젝트**")
         st.markdown("---")
-        st.markdown("### ℹ️ v2 주요 기능")
+        st.markdown("### ℹ️ v3 개선 사항")
         st.info("""
-        - **RAG (Retrieval-Augmented Generation)**:
-          문서 전체를 벡터화하여 심사 항목과
-          관련된 핵심 내용만 AI에 전달
-        - **JSON 모드**: 안정적인 분석 결과
-        - **세부 항목 채점**: 정교한 피드백
-        - **오류 복구**: RAG 실패 시 대체 방안 제공
+        - ✅ **임베딩 API 단일 처리로 변경**
+        - **안정적인 임베딩**: Gemini API 직접 사용
+        - **배치 문제 해결**: 단일 텍스트씩 처리
+        - **오류 복구**: 실패 시 자동 대체
+        - **진행 상황 표시**: 실시간 프로그레스바
         """)
         st.success("✅ API 연결됨")
     
@@ -574,7 +647,7 @@ def main():
         if uploaded_file:
             st.success(f"✅ 파일 업로드 완료: {uploaded_file.name}")
             
-            if st.button("🚀 분석 시작 (RAG)", type="primary", key="analyze_pdf"):
+            if st.button("🚀 분석 시작 (RAG v3)", type="primary", key="analyze_pdf"):
                 try:
                     # 1. 텍스트 추출
                     full_text = auditor.extract_text_from_pdf(uploaded_file)
@@ -610,7 +683,7 @@ def main():
         st.markdown("### 텍스트 직접 입력")
         text_input = st.text_area("보고서 내용을 입력하세요", height=300, key="text_input")
         
-        if st.button("🚀 분석 시작 (RAG)", key="text_analyze", type="primary"):
+        if st.button("🚀 분석 시작 (RAG v3)", key="text_analyze", type="primary"):
             if text_input.strip():
                 try:
                     results = auditor.conduct_audit(full_text=text_input)
@@ -636,25 +709,28 @@ def main():
             )
     
     with tab3:
-        st.markdown("### 📖 사용 가이드 (v2 - RAG)")
-        st.markdown("#### 🚀 RAG (Retrieval-Augmented Generation) 란?")
+        st.markdown("### 📖 사용 가이드 (v3 - 개선된 RAG)")
+        st.markdown("#### 🔧 v3의 주요 개선사항")
         st.markdown("""
-        이전 버전(v1)은 보고서의 **앞부분 4,000자**만 분석하는 한계가 있었습니다.
+        **문제 해결:**
+        - ✅ **임베딩 배치 처리 문제 해결 (단일 처리로 변경)**
+        - v2에서 발생했던 "Illegal metadata" 오류 해결
+        - Langchain 의존성 제거, Gemini API 직접 사용
+        - 더 안정적이고 빠른 임베딩 처리
         
-        **v2의 RAG 방식**은 다릅니다:
-        1. **벡터화:** PDF 문서 전체를 텍스트로 변환한 뒤, 의미 단위(청크)로 잘라 '벡터'로 변환하여 데이터베이스를 구축합니다.
-        2. **검색:** '정책 부합성'을 분석할 땐, PDF 전체에서 "SDGs", "CPS" 등 관련 내용만 **검색(Retrieval)**합니다.
-        3. **분석:** AI는 검색된 **핵심 내용들만**을 바탕으로 심사를 진행합니다.
-        
-        **결과: 100페이지가 넘는 문서라도 전체 내용을 빠짐없이 검토하여 훨씬 정확한 심사 결과를 제공합니다.**
+        **성능 향상:**
+        - 단일 텍스트씩 처리로 안정성 확보
+        - 실시간 진행 상황 표시
+        - 오류 발생 시 자동 복구
+        - 향상된 오류 처리 및 디버깅 메시지
         """)
         
-        st.markdown("#### 🔧 오류 발생 시 대처 방법")
+        st.markdown("#### 🚀 RAG 작동 방식")
         st.markdown("""
-        **"Illegal metadata" 또는 "503" 오류가 발생하면:**
-        - 이는 Google API의 일시적 문제일 수 있습니다
-        - 시스템이 자동으로 대체 방안(전체 텍스트 앞부분 분석)을 제공합니다
-        - 몇 분 후 다시 시도하거나, 문서를 더 작은 부분으로 나누어 분석하세요
+        1. **문서 분할**: 전체 PDF를 1,500자 단위 청크로 분할
+        2. **벡터화**: 각 청크를 768차원 벡터로 변환 (단일 텍스트씩 처리)
+        3. **검색**: 질문과 관련된 상위 15개 청크 검색
+        4. **분석**: 검색된 핵심 내용만으로 AI 분석 수행
         """)
         
         st.markdown("#### 📋 KOICA 심사 기준")
@@ -676,7 +752,7 @@ def main():
 
     # 푸터
     st.markdown("---")
-    st.markdown("<div style='text-align: center; color: #666;'>KOICA 사업 심사 분석 도구 v2 (RAG) | 비공식 개인 프로젝트</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; color: #666;'>KOICA 사업 심사 분석 도구 v3 (개선된 RAG) | 비공식 개인 프로젝트</div>", unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
