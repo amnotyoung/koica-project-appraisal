@@ -6,6 +6,9 @@ KOICA 사업 예비조사 심사 시스템 - UI 컴포넌트
 import logging
 from typing import Dict, Any
 from datetime import datetime
+import json
+import csv
+import io
 import streamlit as st
 
 from config import UIConfig, AuditConfig
@@ -199,6 +202,150 @@ def generate_report_text(results: Dict[str, Any]) -> str:
     lines.append("실제 심사는 전문가의 종합적 판단으로 이루어집니다.")
 
     return "\n".join(lines)
+
+
+def generate_report_json(results: Dict[str, Any]) -> str:
+    """JSON 보고서 생성
+
+    Args:
+        results: 심사 결과 딕셔너리
+
+    Returns:
+        JSON 형식의 보고서
+    """
+    report_data = {
+        "메타데이터": {
+            "분석_일시": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            "분석_시간": results['분석시간'],
+            "RAG_사용": results.get('RAG_사용', False),
+            "버전": "v3.1"
+        },
+        "점수": {
+            "총점": results['총점'],
+            "만점": 100,
+            "정책부합성_점수": results['정책부합성']['점수'],
+            "정책부합성_만점": results['정책부합성']['만점'],
+            "정책부합성_백분율": round(results['정책부합성']['백분율'], 2),
+            "추진여건_점수": results['추진여건']['점수'],
+            "추진여건_만점": results['추진여건']['만점'],
+            "추진여건_백분율": round(results['추진여건']['백분율'], 2)
+        },
+        "정책부합성": {
+            "세부점수": results['정책부합성']['세부점수'],
+            "강점": results['정책부합성']['강점'],
+            "약점": results['정책부합성']['약점'],
+            "개선제안": results['정책부합성']['제안']
+        },
+        "추진여건": {
+            "세부점수": results['추진여건']['세부점수'],
+            "강점": results['추진여건']['강점'],
+            "약점": results['추진여건']['약점'],
+            "개선제안": results['추진여건']['제안']
+        }
+    }
+
+    return json.dumps(report_data, ensure_ascii=False, indent=2)
+
+
+def generate_report_csv(results: Dict[str, Any]) -> str:
+    """CSV 보고서 생성
+
+    Args:
+        results: 심사 결과 딕셔너리
+
+    Returns:
+        CSV 형식의 보고서
+    """
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # 메타데이터
+    writer.writerow(["메타데이터"])
+    writer.writerow(["분석_일시", datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
+    writer.writerow(["분석_시간", results['분석시간']])
+    writer.writerow(["RAG_사용", "예" if results.get('RAG_사용', False) else "아니오"])
+    writer.writerow(["버전", "v3.1"])
+    writer.writerow([])
+
+    # 총점
+    writer.writerow(["점수 요약"])
+    writer.writerow(["항목", "점수", "만점", "백분율"])
+    writer.writerow([
+        "총점",
+        results['총점'],
+        100,
+        f"{(results['총점']/100)*100:.1f}%"
+    ])
+    writer.writerow([
+        "정책부합성",
+        results['정책부합성']['점수'],
+        results['정책부합성']['만점'],
+        f"{results['정책부합성']['백분율']:.1f}%"
+    ])
+    writer.writerow([
+        "추진여건",
+        results['추진여건']['점수'],
+        results['추진여건']['만점'],
+        f"{results['추진여건']['백분율']:.1f}%"
+    ])
+    writer.writerow([])
+
+    # 정책부합성 세부점수
+    writer.writerow(["정책부합성 세부평가"])
+    writer.writerow(["항목", "점수", "만점", "근거"])
+    for item in results['정책부합성']['세부점수']:
+        writer.writerow([
+            item['item'],
+            item['score'],
+            item['max_score'],
+            item['reason']
+        ])
+    writer.writerow([])
+
+    # 정책부합성 강점/약점/제안
+    writer.writerow(["정책부합성 강점"])
+    for s in results['정책부합성']['강점']:
+        writer.writerow([s])
+    writer.writerow([])
+
+    writer.writerow(["정책부합성 약점"])
+    for w in results['정책부합성']['약점']:
+        writer.writerow([w])
+    writer.writerow([])
+
+    writer.writerow(["정책부합성 개선제안"])
+    for r in results['정책부합성']['제안']:
+        writer.writerow([r])
+    writer.writerow([])
+
+    # 추진여건 세부점수
+    writer.writerow(["추진여건 세부평가"])
+    writer.writerow(["항목", "점수", "만점", "근거"])
+    for item in results['추진여건']['세부점수']:
+        writer.writerow([
+            item['item'],
+            item['score'],
+            item['max_score'],
+            item['reason']
+        ])
+    writer.writerow([])
+
+    # 추진여건 강점/약점/제안
+    writer.writerow(["추진여건 강점"])
+    for s in results['추진여건']['강점']:
+        writer.writerow([s])
+    writer.writerow([])
+
+    writer.writerow(["추진여건 약점"])
+    for w in results['추진여건']['약점']:
+        writer.writerow([w])
+    writer.writerow([])
+
+    writer.writerow(["추진여건 개선제안"])
+    for r in results['추진여건']['제안']:
+        writer.writerow([r])
+
+    return output.getvalue()
 
 
 def get_custom_css() -> str:

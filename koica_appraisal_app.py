@@ -16,7 +16,13 @@ logger = setup_logger(name="koica_main", log_to_file=True)
 
 # 내부 모듈 import
 from core.auditor import KOICAAuditorStreamlit
-from ui.components import display_results, generate_report_text, get_custom_css
+from ui.components import (
+    display_results,
+    generate_report_text,
+    generate_report_json,
+    generate_report_csv,
+    get_custom_css
+)
 from config import (
     AppConfig, FileConfig, UIConfig, CacheConfig
 )
@@ -179,14 +185,44 @@ def render_pdf_tab(auditor: KOICAAuditorStreamlit):
         results = st.session_state[CacheConfig.SESSION_PDF_RESULTS]
         display_results(results)
 
-        report_text = generate_report_text(results)
-        st.download_button(
-            label="📥 심사 결과 다운로드",
-            data=report_text,
-            file_name=f"KOICA_RAG_심사결과_{datetime.now().strftime('%Y%m%d')}.txt",
-            mime="text/plain",
-            key="download_pdf"
-        )
+        # 다운로드 버튼 3개 (TXT, JSON, CSV)
+        st.markdown("### 📥 심사 결과 다운로드")
+        col1, col2, col3 = st.columns(3)
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+        with col1:
+            report_text = generate_report_text(results)
+            st.download_button(
+                label="📄 텍스트 (TXT)",
+                data=report_text,
+                file_name=f"KOICA_심사결과_{timestamp}.txt",
+                mime="text/plain",
+                key="download_pdf_txt",
+                help="사람이 읽기 쉬운 텍스트 형식"
+            )
+
+        with col2:
+            report_json = generate_report_json(results)
+            st.download_button(
+                label="💾 JSON",
+                data=report_json,
+                file_name=f"KOICA_심사결과_{timestamp}.json",
+                mime="application/json",
+                key="download_pdf_json",
+                help="데이터베이스 저장에 적합한 JSON 형식"
+            )
+
+        with col3:
+            report_csv = generate_report_csv(results)
+            st.download_button(
+                label="📊 CSV",
+                data=report_csv,
+                file_name=f"KOICA_심사결과_{timestamp}.csv",
+                mime="text/csv",
+                key="download_pdf_csv",
+                help="엑셀/스프레드시트에서 열어볼 수 있는 CSV 형식"
+            )
 
 
 def render_text_tab(auditor: KOICAAuditorStreamlit):
@@ -229,14 +265,44 @@ def render_text_tab(auditor: KOICAAuditorStreamlit):
         results = st.session_state[CacheConfig.SESSION_TEXT_RESULTS]
         display_results(results)
 
-        report_text = generate_report_text(results)
-        st.download_button(
-            label="📥 심사 결과 다운로드",
-            data=report_text,
-            file_name=f"KOICA_RAG_심사결과_{datetime.now().strftime('%Y%m%d')}.txt",
-            mime="text/plain",
-            key="download_text"
-        )
+        # 다운로드 버튼 3개 (TXT, JSON, CSV)
+        st.markdown("### 📥 심사 결과 다운로드")
+        col1, col2, col3 = st.columns(3)
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+        with col1:
+            report_text = generate_report_text(results)
+            st.download_button(
+                label="📄 텍스트 (TXT)",
+                data=report_text,
+                file_name=f"KOICA_심사결과_{timestamp}.txt",
+                mime="text/plain",
+                key="download_text_txt",
+                help="사람이 읽기 쉬운 텍스트 형식"
+            )
+
+        with col2:
+            report_json = generate_report_json(results)
+            st.download_button(
+                label="💾 JSON",
+                data=report_json,
+                file_name=f"KOICA_심사결과_{timestamp}.json",
+                mime="application/json",
+                key="download_text_json",
+                help="데이터베이스 저장에 적합한 JSON 형식"
+            )
+
+        with col3:
+            report_csv = generate_report_csv(results)
+            st.download_button(
+                label="📊 CSV",
+                data=report_csv,
+                file_name=f"KOICA_심사결과_{timestamp}.csv",
+                mime="text/csv",
+                key="download_text_csv",
+                help="엑셀/스프레드시트에서 열어볼 수 있는 CSV 형식"
+            )
 
 
 def render_guide_tab():
