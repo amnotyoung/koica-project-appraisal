@@ -27,7 +27,15 @@ class AnonymousAnalytics:
         Args:
             db_path: SQLite 데이터베이스 파일 경로
         """
-        self.db_path = Path(db_path)
+        # 프로젝트 루트 디렉토리 찾기
+        project_root = Path(__file__).parent.parent
+
+        # 상대 경로인 경우 프로젝트 루트 기준으로 변환
+        if not Path(db_path).is_absolute():
+            self.db_path = project_root / db_path
+        else:
+            self.db_path = Path(db_path)
+
         self.db_path.parent.mkdir(exist_ok=True)
         self._init_database()
 
