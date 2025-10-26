@@ -4,16 +4,39 @@ __pycache__/
 *$py.class
 *.so
 .Python
+*.pyc
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
 env/
 venv/
 ENV/
 .venv
+env.bak/
+venv.bak/
 
-# API Keys
+# API Keys & Secrets
 .env
+.env.*
 *.env
 secrets.toml
 .streamlit/secrets.toml
+config.ini
+credentials.json
 
 # IDE
 .vscode/
@@ -21,19 +44,34 @@ secrets.toml
 *.swp
 *.swo
 *~
+.spyderproject
+.spyproject
+.ropeproject
 
 # OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+Desktop.ini
+
+# 백업 파일 (패턴으로 처리)
+*_backup.py
+*_v[0-9]*.py
+*.bak
+*.backup
 
 # 테스트 파일
 test_*.pdf
 sample_*.pdf
 *.pdf
+.pytest_cache/
+.coverage
+htmlcov/
 
 # 로그
 *.log
-koica_appraisal_app_v1_backup.py
-koica_appraisal_app_v3.py
-koica_appraisal_app_v3_fixed.py
-.streamlit/secrets.toml
+logs/
