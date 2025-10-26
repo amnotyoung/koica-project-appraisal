@@ -269,21 +269,32 @@ class AnonymousAnalytics:
 
                 today_stats = cursor.fetchone()
 
+                # None 값을 0으로 변환
+                total_sessions = stats[0] or 0
+                total_actions = stats[1] or 0
+                pdf_analyses = stats[2] or 0
+                text_analyses = stats[3] or 0
+                successful = stats[4] or 0
+                failed = stats[5] or 0
+                avg_file_size_mb = stats[6] or 0
+                today_sessions = today_stats[0] or 0
+                today_actions = today_stats[1] or 0
+
+                # 성공률 계산 (0으로 나누기 방지)
+                total_analyses = successful + failed
+                success_rate = round((successful / total_analyses * 100) if total_analyses > 0 else 0, 2)
+
                 return {
-                    "total_sessions": stats[0],
-                    "total_actions": stats[1],
-                    "pdf_analyses": stats[2],
-                    "text_analyses": stats[3],
-                    "successful_analyses": stats[4],
-                    "failed_analyses": stats[5],
-                    "avg_file_size_mb": round(stats[6], 2),
-                    "today_sessions": today_stats[0],
-                    "today_actions": today_stats[1],
-                    "success_rate": round(
-                        (stats[4] / (stats[4] + stats[5]) * 100)
-                        if (stats[4] + stats[5]) > 0 else 0,
-                        2
-                    )
+                    "total_sessions": total_sessions,
+                    "total_actions": total_actions,
+                    "pdf_analyses": pdf_analyses,
+                    "text_analyses": text_analyses,
+                    "successful_analyses": successful,
+                    "failed_analyses": failed,
+                    "avg_file_size_mb": round(avg_file_size_mb, 2),
+                    "today_sessions": today_sessions,
+                    "today_actions": today_actions,
+                    "success_rate": success_rate
                 }
 
         except Exception as e:
