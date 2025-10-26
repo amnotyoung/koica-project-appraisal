@@ -345,11 +345,12 @@ class KOICAAuditorStreamlit:
     {{"item": "타 공여기관", "score": 0-5, "max_score": 5, "reason": "타 공여기관 중복 분석에 대한 평가 근거"}}
   ],
   "reasoning": "점수 산정 논리 상세 설명",
-  "strengths": ["강점1", "강점2"],
-  "weaknesses": ["약점1", "약점2"],
-  "recommendations": ["개선안1", "개선안2"]
+  "strengths": ["발견된 모든 강점을 나열"],
+  "weaknesses": ["발견된 모든 약점을 나열"],
+  "recommendations": ["필요한 모든 개선안을 나열"]
 }}
 
+**주의**: strengths, weaknesses, recommendations는 각각 발견된 모든 내용을 빠짐없이 나열해주세요.
 JSON만 출력하세요."""
 
     def _build_implementation_readiness_prompt(self, context: str) -> str:
@@ -377,11 +378,12 @@ JSON만 출력하세요."""
     {{"item": "성과관리", "score": 0-10, "max_score": 10, "reason": "평가 근거"}}
   ],
   "reasoning": "점수 산정 논리 상세 설명",
-  "strengths": ["강점1", "강점2"],
-  "weaknesses": ["약점1", "약점2"],
-  "recommendations": ["개선안1", "개선안2"]
+  "strengths": ["발견된 모든 강점을 나열"],
+  "weaknesses": ["발견된 모든 약점을 나열"],
+  "recommendations": ["필요한 모든 개선안을 나열"]
 }}
 
+**주의**: strengths, weaknesses, recommendations는 각각 발견된 모든 내용을 빠짐없이 나열해주세요.
 JSON만 출력하세요."""
 
     @staticmethod
