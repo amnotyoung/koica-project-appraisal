@@ -99,6 +99,19 @@ def render_sidebar():
         st.warning("**비공식 개인 프로젝트**")
         st.markdown("---")
 
+        # 익명 모니터링 안내
+        st.markdown("### 🔒 개인정보 보호")
+        st.info("""
+        **익명 사용 통계 수집 중**
+
+        개인정보는 수집하지 않으며,
+        서비스 개선을 위한 익명 데이터만
+        수집됩니다.
+
+        📊 관리자 대시보드에서 확인 가능
+        """)
+        st.markdown("---")
+
         st.markdown("### ℹ️ v3.1 개선 사항")
         st.info("""
         - ✅ **모듈화된 코드 구조**
@@ -127,6 +140,46 @@ def render_disclaimer():
             본 도구는 <strong>KOICA 공식 서비스가 아닙니다</strong>.
             개인이 KOICA 심사 기준을 참고하여 독자적으로 개발한 분석 도구입니다.
             분석 결과는 참고용이며, 공식적인 심사 결과와 다를 수 있습니다.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def render_privacy_notice():
+    """개인정보 보호 및 익명 모니터링 안내"""
+    st.markdown(
+        """
+        <div style="background-color: #e8f4f8; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #0066cc;">
+            <h4 style="color: #0066cc; margin-top: 0;">🔒 개인정보 보호 및 익명 사용 통계</h4>
+            <p style="font-size: 14px; line-height: 1.6; margin-bottom: 10px;">
+                본 서비스는 <strong>서비스 개선을 위해 익명 사용 통계를 수집</strong>합니다.<br>
+                <strong>개인정보 보호법을 준수</strong>하며, 개인을 식별할 수 있는 정보는 수집하지 않습니다.
+            </p>
+            <details>
+                <summary style="cursor: pointer; color: #0066cc; font-weight: 500;">
+                    📊 수집하는 정보 (클릭하여 보기)
+                </summary>
+                <div style="margin-top: 10px; padding-left: 15px; font-size: 13px;">
+                    <p><strong>✅ 수집하는 데이터 (익명):</strong></p>
+                    <ul style="margin: 5px 0;">
+                        <li>익명 세션 ID (무작위 UUID)</li>
+                        <li>방문 시간 (타임스탬프)</li>
+                        <li>사용한 기능 (PDF/텍스트 분석)</li>
+                        <li>파일 크기 (실제 내용은 수집 안 함)</li>
+                        <li>분석 성공/실패 여부</li>
+                    </ul>
+                    <p style="margin-top: 10px;"><strong>❌ 수집하지 않는 데이터:</strong></p>
+                    <ul style="margin: 5px 0;">
+                        <li>IP 주소, 사용자 이름, 이메일 등 개인정보</li>
+                        <li>업로드한 파일 이름 및 내용</li>
+                        <li>분석 결과 내용</li>
+                    </ul>
+                    <p style="margin-top: 10px; color: #666; font-size: 12px;">
+                        💡 수집된 익명 데이터는 서비스 사용 패턴 분석 및 개선에만 사용됩니다.
+                    </p>
+                </div>
+            </details>
         </div>
         """,
         unsafe_allow_html=True
@@ -462,6 +515,9 @@ def main():
 
     # 면책 조항
     render_disclaimer()
+
+    # 개인정보 보호 및 익명 모니터링 안내
+    render_privacy_notice()
 
     # API 키 로드
     api_key = load_api_key()
