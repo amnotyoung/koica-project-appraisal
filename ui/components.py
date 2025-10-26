@@ -345,7 +345,8 @@ def generate_report_csv(results: Dict[str, Any]) -> str:
     for r in results['추진여건']['제안']:
         writer.writerow([r])
 
-    return output.getvalue()
+    # UTF-8 BOM 추가 (macOS 엑셀 한글 깨짐 방지)
+    return '\ufeff' + output.getvalue()
 
 
 def get_custom_css() -> str:
